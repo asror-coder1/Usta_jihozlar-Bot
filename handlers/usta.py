@@ -23,8 +23,8 @@ async def usta_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(
         "🌐 <b>UstaZone veb-sayt:</b>\n"
-        "https://ustazone.uz\n\n"
-        "📱 <b>Telegram:</b> @ustazone",
+        "https://ustazone.vercel.app/\n\n"
+        "📱 <b>Telegram:</b> @ustazor_otp_bot",
         parse_mode="HTML",
         reply_markup=main_menu(role),
     )
