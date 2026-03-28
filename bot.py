@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sys
 
 from telegram import Update
 from telegram.ext import (
@@ -7,85 +8,89 @@ from telegram.ext import (
     CallbackQueryHandler, filters,
 )
 
+# Config va Database (Railway Variables'dan o'qiydi)
 from config import BOT_TOKEN
 import database as db
 
-# Handlers (Fayl manzillari to'g'riligiga ishonch hosil qiling)
+# Handlers
 from handlers.start import registration_conv
 from handlers.elonlar import (
-    elon_conv,
-    buyurtma_berish_menu,
-    my_ads_menu,
-    ad_detail_callback,
-    my_ad_view_callback,
-    delete_ad_callback,
+    elon_conv, buyurtma_berish_menu, my_ads_menu,
+    ad_detail_callback, my_ad_view_callback, delete_ad_callback,
 )
 from handlers.buyurtma import order_conv, my_orders_menu
 from handlers.subscription import subscription_menu, sub_conv
 from handlers.usta import usta_menu, about_menu
 from handlers.admin import (
-    admin_command,
-    admin_panel_button,
-    admin_callback,
-    order_action_callback,
-    sub_action_callback,
-    set_role_callback,
+    admin_command, admin_panel_button, admin_callback,
+    order_action_callback, sub_action_callback, set_role_callback,
 )
 
-# Logging sozlamalari
+# Logging sozlamalari (Railway loglarida ko'rish uchun)
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     level=logging.INFO,
+    stream=sys.stdout
 )
 logger = logging.getLogger(__name__)
 
 async def start_bot():
-    # 1. Ma'lumotlar bazasini ishga tushirish
-    await db.init_db()
-    
-    # 2. Application builder
-    app = Application.builder().token(BOT_TOKEN).build()
+    try:
+        # 1. Ma'lumotlar bazasini tekshirish
+        logger.info("⏳ Ma'lumotlar bazasi ulanmoqda...")
+        try:
+            await db.init_db()
+            logger.info("✅ Baza muvaffaqiyatli ulandi.")
+        except Exception as db_err:
+            logger.error(f"❌ Baza ulanishida xato: {db_err}")
+            # Agar baza muhim bo'lsa, bu yerda return qilish mumkin
 
-    # ── ConversationHandlers (ustuvorlik tartibi) ──────────────────────────
-    app.add_handler(registration_conv)      # /start + ro'yxatdan o'tish
-    app.add_handler(elon_conv)              # E'lon berish
-    app.add_handler(sub_conv)               # Obuna to'lov cheki
-    app.add_handler(order_conv)             # Buyurtma berish
+        # 2. Application builder
+        if not BOT_TOKEN:
+            logger.error("❌ BOT_TOKEN topilmadi! Railway Variables'ni tekshiring.")
+            return
 
-    # ── Oddiy xabar handlerlari ───────────────────────────────────────────
-    app.add_handler(MessageHandler(filters.Regex("^🛒 Buyurtma berish$"), buyurtma_berish_menu))
-    app.add_handler(MessageHandler(filters.Regex("^👤 E'lonlarim$"), my_ads_menu))
-    app.add_handler(MessageHandler(filters.Regex("^📋 Buyurtmalarim$"), my_orders_menu))
-    app.add_handler(MessageHandler(filters.Regex("^💎 Obuna$"), subscription_menu))
-    app.add_handler(MessageHandler(filters.Regex("^🔧 Usta topish$"), usta_menu))
-    app.add_handler(MessageHandler(filters.Regex("^ℹ️ Bot haqida$"), about_menu))
-    app.add_handler(MessageHandler(filters.Regex("^🛡 Admin panel$"), admin_panel_button))
+        app = Application.builder().token(BOT_TOKEN).build()
 
-    # ── Admin buyrug'i ───────────────────────────────────────────────────
-    app.add_handler(CommandHandler("admin", admin_command))
+        # ── Handlers qo'shish ──────────────────────────────────────────
+        app.add_handler(registration_conv)
+        app.add_handler(elon_conv)
+        app.add_handler(sub_conv)
+        app.add_handler(order_conv)
 
-    # ── Inline callback handlerlari ──────────────────────────────────────
-    app.add_handler(CallbackQueryHandler(admin_callback, pattern="^admin_"))
-    app.add_handler(CallbackQueryHandler(ad_detail_callback, pattern="^ad_\\d+$"))
-    app.add_handler(CallbackQueryHandler(my_ad_view_callback, pattern="^myadview_"))
-    app.add_handler(CallbackQueryHandler(delete_ad_callback, pattern="^del_ad_"))
-    app.add_handler(CallbackQueryHandler(order_action_callback, pattern="^ord_(ok|rej)_"))
-    app.add_handler(CallbackQueryHandler(sub_action_callback, pattern="^sub_(approve|reject)_"))
-    app.add_handler(CallbackQueryHandler(set_role_callback, pattern="^role_"))
+        app.add_handler(MessageHandler(filters.Regex("^🛒 Buyurtma berish$"), buyurtma_berish_menu))
+        app.add_handler(MessageHandler(filters.Regex("^👤 E'lonlarim$"), my_ads_menu))
+        app.add_handler(MessageHandler(filters.Regex("^📋 Buyurtmalarim$"), my_orders_menu))
+        app.add_handler(MessageHandler(filters.Regex("^💎 Obuna$"), subscription_menu))
+        app.add_handler(MessageHandler(filters.Regex("^🔧 Usta topish$"), usta_menu))
+        app.add_handler(MessageHandler(filters.Regex("^ℹ️ Bot haqida$"), about_menu))
+        app.add_handler(MessageHandler(filters.Regex("^🛡 Admin panel$"), admin_panel_button))
 
-    logger.info("✅ Bot muvaffaqiyatli ishga tushdi!")
-    
-    # 3. Botni asinxron ishga tushirish
-    async with app:
+        app.add_handler(CommandHandler("admin", admin_command))
+
+        app.add_handler(CallbackQueryHandler(admin_callback, pattern="^admin_"))
+        app.add_handler(CallbackQueryHandler(ad_detail_callback, pattern="^ad_\\d+$"))
+        app.add_handler(CallbackQueryHandler(my_ad_view_callback, pattern="^myadview_"))
+        app.add_handler(CallbackQueryHandler(delete_ad_callback, pattern="^del_ad_"))
+        app.add_handler(CallbackQueryHandler(order_action_callback, pattern="^ord_(ok|rej)_"))
+        app.add_handler(CallbackQueryHandler(sub_action_callback, pattern="^sub_(approve|reject)_"))
+        app.add_handler(CallbackQueryHandler(set_role_callback, pattern="^role_"))
+
+        logger.info("🚀 Bot polling rejimida ishga tushmoqda...")
+        
+        # 3. Railway uchun moslashtirilgan start
         await app.initialize()
         await app.start()
         await app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
-        # Botni to'xtamaguncha ushlab turish
+        
+        # Botni ushlab turish
         await asyncio.Event().wait()
+
+    except Exception as e:
+        logger.critical(f"💥 Bot ishga tushishida jiddiy xato: {e}", exc_info=True)
 
 if __name__ == "__main__":
     try:
-        # Windows'da event loop muammosini hal qilish uchun
         asyncio.run(start_bot())
     except (KeyboardInterrupt, SystemExit):
-        logger.info("❌ Bot to'xtatildi!")
+        logger.info("👋 Bot to'xtatildi!")
