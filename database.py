@@ -1,102 +1,203 @@
-import aiosqlite
-import asyncio
-from datetime import datetime, timedelta
+import sqlalchemy
+from sqlalchemy import (
+    Column, Integer, String, Text, DateTime, MetaData,
+    Table, create_engine, func
+)
+from databases import Database
 
-DB_PATH = "bot.db"
+from config import DB_URL
+
+database = Database(DB_URL)
+metadata = MetaData()
+
+users = Table(
+    "users",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("telegram_id", Integer, unique=True, nullable=False),
+    Column("full_name", String, nullable=True),
+    Column("phone", String, nullable=True),
+    Column("role", String, nullable=False, server_default="user"),
+    Column("created_at", DateTime, server_default=func.now()),
+)
+
+ads = Table(
+    "ads",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("user_id", Integer, nullable=False),
+    Column("title", String, nullable=False),
+    Column("info", Text, nullable=True),
+    Column("price", String, nullable=True),
+    Column("condition", String, nullable=True),
+    Column("owner_info", String, nullable=True),
+    Column("status", String, nullable=False, server_default="active"),
+    Column("created_at", DateTime, server_default=func.now()),
+)
+
+orders = Table(
+    "orders",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("buyer_id", Integer, nullable=False),
+    Column("ad_id", Integer, nullable=False),
+    Column("order_type", String, nullable=True),
+    Column("status", String, nullable=False, server_default="pending"),
+    Column("card_photo", String, nullable=True),
+    Column("created_at", DateTime, server_default=func.now()),
+)
+
+subscriptions = Table(
+    "subscriptions",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("user_id", Integer, nullable=False, unique=True),
+    Column("plan_name", String, nullable=True),
+    Column("price", Integer, nullable=True),
+    Column("paid_at", DateTime, nullable=True),
+    Column("expires_at", DateTime, nullable=True),
+    Column("status", String, nullable=False, server_default="pending"),
+    Column("card_photo", String, nullable=True),
+)
 
 
 async def init_db():
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                telegram_id INTEGER UNIQUE NOT NULL,
-                full_name TEXT,
-                phone TEXT,
-                role TEXT DEFAULT 'user',
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS ads (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                title TEXT NOT NULL,
-                info TEXT,
-                price TEXT,
-                condition TEXT,
-                owner_info TEXT,
-                status TEXT DEFAULT 'active',
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(telegram_id)
-            )
-        """)
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS orders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                buyer_id INTEGER NOT NULL,
-                ad_id INTEGER NOT NULL,
-                order_type TEXT,
-                status TEXT DEFAULT 'pending',
-                card_photo TEXT,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (buyer_id) REFERENCES users(telegram_id),
-                FOREIGN KEY (ad_id) REFERENCES ads(id)
-            )
-        """)
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS subscriptions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL UNIQUE,
-                plan_name TEXT,
-                price INTEGER,
-                paid_at TEXT,
-                expires_at TEXT,
-                status TEXT DEFAULT 'pending',
-                card_photo TEXT,
-                FOREIGN KEY (user_id) REFERENCES users(telegram_id)
-            )
-        """)
-        await db.commit()
+    engine = create_engine(DB_URL, future=True)
+    metadata.create_all(engine)
+    if not database.is_connected:
+        await database.connect()
 
 
-# ─── USERS ───────────────────────────────────────────────────────────────────
+async def close_db():
+    if database.is_connected:
+        await database.disconnect()
+
 
 async def get_user(telegram_id: int):
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT * FROM users WHERE telegram_id = ?", (telegram_id,)
-        ) as cursor:
-            row = await cursor.fetchone()
-            return dict(row) if row else None
+    query = users.select().where(users.c.telegram_id == telegram_id)
+    row = await database.fetch_one(query)
+    return dict(row) if row else None
 
 
 async def create_user(telegram_id: int, full_name: str = None, phone: str = None, role: str = "user"):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "INSERT OR IGNORE INTO users (telegram_id, full_name, phone, role) VALUES (?, ?, ?, ?)",
-            (telegram_id, full_name, phone, role),
-        )
-        await db.commit()
+    query = users.insert().values(telegram_id=telegram_id, full_name=full_name, phone=phone, role=role)
+    await database.execute(query)
 
 
 async def update_user(telegram_id: int, **kwargs):
     if not kwargs:
         return
-    fields = ", ".join(f"{k} = ?" for k in kwargs)
-    values = list(kwargs.values()) + [telegram_id]
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(f"UPDATE users SET {fields} WHERE telegram_id = ?", values)
-        await db.commit()
+    query = users.update().where(users.c.telegram_id == telegram_id).values(**kwargs)
+    await database.execute(query)
 
 
 async def get_all_users():
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM users ORDER BY created_at DESC") as cursor:
-            rows = await cursor.fetchall()
-            return [dict(r) for r in rows]
+    query = users.select().order_by(users.c.created_at.desc())
+    rows = await database.fetch_all(query)
+    return [dict(r) for r in rows]
+
+
+async def set_user_role(telegram_id: int, role: str):
+    await update_user(telegram_id, role=role)
+
+
+async def create_ad(user_id: int, title: str, info: str, price: str, condition: str, owner_info: str):
+    query = ads.insert().values(user_id=user_id, title=title, info=info, price=price, condition=condition, owner_info=owner_info)
+    return await database.execute(query)
+
+
+async def get_ads(status: str = "active", limit: int = 20):
+    query = ads.select().where(ads.c.status == status).order_by(ads.c.created_at.desc()).limit(limit)
+    rows = await database.fetch_all(query)
+    return [dict(r) for r in rows]
+
+
+async def get_user_ads(user_id: int):
+    query = ads.select().where(ads.c.user_id == user_id).order_by(ads.c.created_at.desc())
+    rows = await database.fetch_all(query)
+    return [dict(r) for r in rows]
+
+
+async def get_ad(ad_id: int):
+    query = ads.select().where(ads.c.id == ad_id)
+    row = await database.fetch_one(query)
+    return dict(row) if row else None
+
+
+async def delete_ad(ad_id: int, user_id: int):
+    query = ads.delete().where(ads.c.id == ad_id).where(ads.c.user_id == user_id)
+    await database.execute(query)
+
+
+async def search_ads(query_text: str):
+    query = ads.select().where(
+        (ads.c.status == "active") &
+        ((ads.c.title.ilike(f"%{query_text}%")) | (ads.c.info.ilike(f"%{query_text}%")))
+    ).order_by(ads.c.created_at.desc()).limit(10)
+    rows = await database.fetch_all(query)
+    return [dict(r) for r in rows]
+
+
+async def create_order(buyer_id: int, ad_id: int, order_type: str, card_photo: str = None):
+    query = orders.insert().values(buyer_id=buyer_id, ad_id=ad_id, order_type=order_type, card_photo=card_photo)
+    return await database.execute(query)
+
+
+async def get_user_orders(buyer_id: int):
+    query = orders.select().where(orders.c.buyer_id == buyer_id).order_by(orders.c.created_at.desc())
+    rows = await database.fetch_all(query)
+    return [dict(r) for r in rows]
+
+
+async def get_all_orders():
+    query = orders.select().order_by(orders.c.created_at.desc())
+    rows = await database.fetch_all(query)
+    return [dict(r) for r in rows]
+
+
+async def update_order_status(order_id: int, status: str):
+    query = orders.update().where(orders.c.id == order_id).values(status=status)
+    await database.execute(query)
+
+
+from datetime import datetime, timedelta
+
+
+async def create_subscription(user_id: int, plan_name: str, price: int, card_photo: str, days: int):
+    expires_at = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    query = subscriptions.insert().values(
+        user_id=user_id,
+        plan_name=plan_name,
+        price=price,
+        paid_at=datetime.now(),
+        expires_at=expires_at,
+        status="pending",
+        card_photo=card_photo,
+    )
+    await database.execute(query)
+
+
+async def get_subscription(user_id: int):
+    query = subscriptions.select().where(subscriptions.c.user_id == user_id)
+    row = await database.fetch_one(query)
+    return dict(row) if row else None
+
+
+async def approve_subscription(user_id: int):
+    query = subscriptions.update().where(subscriptions.c.user_id == user_id).values(status='active')
+    await database.execute(query)
+
+
+async def is_subscribed(user_id: int) -> bool:
+    sub = await get_subscription(user_id)
+    if not sub or sub.get('status') != 'active':
+        return False
+    expires_at = sub.get('expires_at')
+    if not expires_at:
+        return False
+    if isinstance(expires_at, str):
+        expires_at = datetime.strptime(expires_at, "%Y-%m-%d %H:%M:%S")
+    return expires_at > datetime.now()
 
 
 async def set_user_role(telegram_id: int, role: str):

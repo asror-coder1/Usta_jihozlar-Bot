@@ -85,9 +85,10 @@ async def start_bot():
         
         # Botni ushlab turish
         await asyncio.Event().wait()
-
     except Exception as e:
         logger.critical(f"💥 Bot ishga tushishida jiddiy xato: {e}", exc_info=True)
+    finally:
+        await db.close_db()
 
 if __name__ == "__main__":
     try:

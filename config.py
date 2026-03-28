@@ -8,6 +8,7 @@ ADMIN_IDS = [int(x) for x in os.getenv("ADMIN_IDS", "123456789").split(",") if x
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@your_channel")
 CARD_NUMBER = os.getenv("CARD_NUMBER", "8600 0000 0000 0000")
 CARD_OWNER = os.getenv("CARD_OWNER", "To'lov qabul qiluvchi")
+DB_URL = os.getenv("DATABASE_URL", "sqlite:///bot.db")
 
 # Subscription plans
 SUBSCRIPTION_PLANS = {
