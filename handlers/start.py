@@ -1,16 +1,21 @@
 from telegram import Update
-from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters, ConversationHandler
+from telegram.ext import (
+    ContextTypes, CommandHandler, MessageHandler, 
+    filters, ConversationHandler
+)
 
 import database as db
 from keyboards import main_menu, phone_kb, cancel_kb
 
+# Holatlar
 PHONE, NAME = range(2)
-
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    # Bazadan foydalanuvchini tekshiramiz
     existing = await db.get_user(user.id)
 
+    # Agar foydalanuvchi bor bo'lsa va telefoni bo'lsa, ro'yxatdan o'tkazmaymiz
     if existing and existing.get("phone"):
         role = existing.get("role", "user")
         await update.message.reply_text(
@@ -21,10 +26,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
+    # Aks holda ro'yxatdan o'tishni boshlaymiz
     await update.message.reply_text(
         "👋 <b>Assalomu alaykum!</b>\n\n"
         "Botdan foydalanish uchun avval ro'yxatdan o'ting.\n\n"
-        "📱 Telefon raqamingizni yuboring:",
+        "📱 Telefon raqamingizni yuboring (tugmani bosing yoki yozing):",
         parse_mode="HTML",
         reply_markup=phone_kb(),
     )
@@ -32,14 +38,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Bekor qilishni tekshirish
+    if update.message.text == "❌ Bekor qilish":
+        return await cancel(update, context)
+
+    # Kontakt yoki matn orqali raqamni olish
     if update.message.contact:
         phone = update.message.contact.phone_number
-        if not phone.startswith("+"):
-            phone = "+" + phone
     else:
         phone = update.message.text.strip()
-        if not phone.startswith("+"):
-            phone = "+" + phone
+    
+    # Raqamni formatlash (faqat raqamlar va + belgisi)
+    if not phone.startswith("+"):
+        phone = "+" + phone
 
     context.user_data["phone"] = phone
     await update.message.reply_text(
@@ -56,13 +67,21 @@ async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await cancel(update, context)
 
     phone = context.user_data.get("phone", "")
-    user = update.effective_user
+    user_id = update.effective_user.id
 
-    await db.create_user(user.id, full_name=name, phone=phone)
-    await db.update_user(user.id, full_name=name, phone=phone)
+    # MUHIM: Avval foydalanuvchi borligini tekshiramiz
+    existing = await db.get_user(user_id)
+    
+    if not existing:
+        # Yangi foydalanuvchi yaratish
+        await db.create_user(user_id, full_name=name, phone=phone)
+    else:
+        # Bor foydalanuvchini yangilash
+        await db.update_user(user_id, full_name=name, phone=phone)
 
-    existing = await db.get_user(user.id)
-    role = existing.get("role", "user") if existing else "user"
+    # Rolni aniqlash
+    user_data = await db.get_user(user_id)
+    role = user_data.get("role", "user") if user_data else "user"
 
     await update.message.reply_text(
         f"🎉 <b>Ro'yxatdan muvaffaqiyatli o'tdingiz!</b>\n\n"
@@ -72,17 +91,20 @@ async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML",
         reply_markup=main_menu(role),
     )
+    context.user_data.clear()
     return ConversationHandler.END
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    existing = await db.get_user(user.id)
+    user_id = update.effective_user.id
+    existing = await db.get_user(user_id)
     role = existing.get("role", "user") if existing else "user"
+    
     await update.message.reply_text(
-        "❌ Bekor qilindi.",
-        reply_markup=main_menu(role),
+        "❌ Ro'yxatdan o'tish bekor qilindi.",
+        reply_markup=main_menu(role) if existing else None # Ro'yxatdan o'tmagan bo'lsa menyu ko'rsatmaymiz
     )
+    context.user_data.clear()
     return ConversationHandler.END
 
 
@@ -97,4 +119,5 @@ registration_conv = ConversationHandler(
     },
     fallbacks=[MessageHandler(filters.Regex("^❌ Bekor qilish$"), cancel)],
     allow_reentry=True,
+    per_message=False # Ogohlantirishlarni oldini olish uchun
 )

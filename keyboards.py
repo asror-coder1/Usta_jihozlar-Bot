@@ -1,7 +1,6 @@
 from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton
 
-
-# ─── MAIN MENU ────────────────────────────────────────────────────────────────
+# ─── ASOSIY MENYU ─────────────────────────────────────────────────────────────
 
 def main_menu(role: str = "user"):
     buttons = [
@@ -14,14 +13,11 @@ def main_menu(role: str = "user"):
         buttons.append(["🛡 Admin panel"])
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
-
 def cancel_kb():
     return ReplyKeyboardMarkup([["❌ Bekor qilish"]], resize_keyboard=True)
 
-
 def back_kb():
     return ReplyKeyboardMarkup([["⬅️ Orqaga"]], resize_keyboard=True)
-
 
 def phone_kb():
     return ReplyKeyboardMarkup(
@@ -30,14 +26,12 @@ def phone_kb():
         resize_keyboard=True,
     )
 
-
-# ─── REGISTRATION ────────────────────────────────────────────────────────────
+# ─── RO'YXATDAN O'TISH ────────────────────────────────────────────────────────
 
 def skip_kb():
     return ReplyKeyboardMarkup([["➡️ O'tkazib yuborish"], ["❌ Bekor qilish"]], resize_keyboard=True)
 
-
-# ─── E'LON BERISH ────────────────────────────────────────────────────────────
+# ─── E'LON BERISH ─────────────────────────────────────────────────────────────
 
 def condition_kb():
     return ReplyKeyboardMarkup(
@@ -45,8 +39,7 @@ def condition_kb():
         resize_keyboard=True,
     )
 
-
-# ─── BUYURTMA ────────────────────────────────────────────────────────────────
+# ─── BUYURTMA ─────────────────────────────────────────────────────────────────
 
 def order_type_kb():
     return ReplyKeyboardMarkup(
@@ -54,15 +47,13 @@ def order_type_kb():
         resize_keyboard=True,
     )
 
-
 def confirm_kb():
     return ReplyKeyboardMarkup(
         [["✅ Ha, tasdiqlash", "❌ Yo'q, bekor qilish"]],
         resize_keyboard=True,
     )
 
-
-# ─── INLINE — ADS ────────────────────────────────────────────────────────────
+# ─── INLINE — E'LONLAR (Xatolar tuzatildi) ────────────────────────────────────
 
 def ads_inline(ads: list):
     buttons = []
@@ -70,11 +61,10 @@ def ads_inline(ads: list):
         buttons.append([
             InlineKeyboardButton(
                 f"📦 {ad['title']} — {ad['price']}",
-                callback_data=f"ad_{ad['id']}",
+                callback_data=f"ad_view_{ad['id']}", # Format: prefix_action_id
             )
         ])
     return InlineKeyboardMarkup(buttons)
-
 
 def ad_detail_inline(ad_id: int, is_owner: bool = False):
     buttons = [
@@ -84,18 +74,17 @@ def ad_detail_inline(ad_id: int, is_owner: bool = False):
         buttons.append([InlineKeyboardButton("🗑 O'chirish", callback_data=f"del_ad_{ad_id}")])
     return InlineKeyboardMarkup(buttons)
 
-
 def my_ads_inline(ads: list):
     buttons = []
     for ad in ads:
         buttons.append([
-            InlineKeyboardButton(f"📦 {ad['title']}", callback_data=f"myadview_{ad['id']}"),
+            # BU YERDA XATO BOR EDI: myadview_{id} -> myad_view_{id} ga o'zgartirildi
+            InlineKeyboardButton(f"📦 {ad['title']}", callback_data=f"myad_view_{ad['id']}"),
             InlineKeyboardButton("🗑", callback_data=f"del_ad_{ad['id']}"),
         ])
     return InlineKeyboardMarkup(buttons)
 
-
-# ─── INLINE — SUBSCRIPTION ───────────────────────────────────────────────────
+# ─── INLINE — OBUNA ───────────────────────────────────────────────────────────
 
 def plans_inline(plans: dict):
     buttons = []
@@ -103,32 +92,29 @@ def plans_inline(plans: dict):
         buttons.append([
             InlineKeyboardButton(
                 f"{plan['name']} — {plan['price']:,} so'm",
-                callback_data=f"plan_{key}",
+                callback_data=f"plan_select_{key}",
             )
         ])
     return InlineKeyboardMarkup(buttons)
 
-
-# ─── INLINE — ADMIN ──────────────────────────────────────────────────────────
+# ─── INLINE — ADMIN ───────────────────────────────────────────────────────────
 
 def admin_main_inline():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("👥 Foydalanuvchilar", callback_data="admin_users")],
-        [InlineKeyboardButton("📦 Barcha e'lonlar", callback_data="admin_ads")],
-        [InlineKeyboardButton("🛒 Barcha buyurtmalar", callback_data="admin_orders")],
-        [InlineKeyboardButton("💳 To'lovlar (Obuna)", callback_data="admin_subs")],
-        [InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")],
+        [InlineKeyboardButton("👥 Foydalanuvchilar", callback_data="admin_users_list")],
+        [InlineKeyboardButton("📦 Barcha e'lonlar", callback_data="admin_ads_list")],
+        [InlineKeyboardButton("🛒 Barcha buyurtmalar", callback_data="admin_orders_list")],
+        [InlineKeyboardButton("💳 To'lovlar (Obuna)", callback_data="admin_subs_list")],
+        [InlineKeyboardButton("📊 Statistika", callback_data="admin_stats_view")],
     ])
-
 
 def sub_approve_inline(user_id: int):
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("✅ Tasdiqlash", callback_data=f"sub_approve_{user_id}"),
-            InlineKeyboardButton("❌ Rad etish", callback_data=f"sub_reject_{user_id}"),
+            InlineKeyboardButton("✅ Tasdiqlash", callback_data=f"sub_app_{user_id}"),
+            InlineKeyboardButton("❌ Rad etish", callback_data=f"sub_rej_{user_id}"),
         ]
     ])
-
 
 def order_manage_inline(order_id: int):
     return InlineKeyboardMarkup([
@@ -137,7 +123,6 @@ def order_manage_inline(order_id: int):
             InlineKeyboardButton("❌ Rad etish", callback_data=f"ord_rej_{order_id}"),
         ]
     ])
-
 
 def set_role_inline(user_tg_id: int):
     return InlineKeyboardMarkup([

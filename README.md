@@ -26,14 +26,14 @@ d:\TgBot\
 `.env` faylini oching va quyidagilarni to'ldiring:
 
 ```env
-BOT_TOKEN=7xxxxxxxxx:AAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+BOT_TOKEN=8743684697:AAEw1dX2LViSg-BUptyu76mMzSQ7IX2y2gE
 ADMIN_IDS=123456789,987654321
 CHANNEL_USERNAME=@your_channel
 CARD_NUMBER=8600 1234 5678 9012
 CARD_OWNER=Abdullayev Abdulla
 ```
 
-- **BOT_TOKEN** — 8743684697:AAFMhREmqGxfS2e6QWagX3m14GYYNCfjGpc
+- **BOT_TOKEN** — 8743684697:AAEw1dX2LViSg-BUptyu76mMzSQ7IX2y2gE
 - **ADMIN_IDS** — 7499973776
 - **CARD_NUMBER** — 9860170105907738
 - **CARD_OWNER** — Ahror Fayzullayev
